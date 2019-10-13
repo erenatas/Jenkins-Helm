@@ -1,0 +1,13 @@
+apiVersion: v1
+name: erenjenkins
+home: https://github.com/erenatas
+version: 1.0.0
+appVersion: lts
+description: Jenkins chart file 
+sources:
+- https://github.com/jenkinsci/jenkins
+- https://github.com/jenkinsci/docker-jnlp-slave
+- https://github.com/jenkinsci/configuration-as-code-plugin
+maintainers:
+- name: Eren ATAS
+  email: eren_atas@hotmail.com

@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "jenkins.fullname" . }}-jasc-config
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/name: {{ template "jenkins.name" . }}
+data:
+  # When the config map is mounted as a volume, these will be created as files.
+  jenkins_configuration.yaml: |-
+    jenkins:
+      systemMessage: Welcome to Eren's CI\CD server.  This Jenkins is configured and managed 'as code'.
+      numExecutors: {{ .Values.master.numExecutors }}
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+          - id: "{{ .Values.master.authentication.username }}"
+            password: "{{ .Values.master.authentication.username }}"
+      authorizationStrategy: "loggedInUsersCanDoAnything"
+      clouds:    
+        - kubernetes:
+            containerCapStr: "10"
+            jenkinsTunnel: "{{ template "jenkins.fullname" . }}-agent:{{ .Values.master.slaveListenerPort }}"
+            jenkinsUrl: "http://{{ template "jenkins.fullname" . }}:{{.Values.master.servicePort}}{{ default "" .Values.master.jenkinsUriPrefix }}"
+            maxRequestsPerHostStr: "32"
+            name: "kubernetes"
+            namespace: "{{ template "jenkins.master.kubernetesNamespace" . }}"
+            serverUrl: "https://kubernetes.default"
+            templates:
+            - containers:
+              - name: "jnlp"
+                image: "{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag }}"
+                alwaysPullImage: {{ .Values.agent.alwaysPullImage }}
+                workingDir: "{{ .Values.agent.workingDir}}"
+                args: "^${computer.jnlpmac} ^${computer.name}"
+                command: {{ .Values.agent.command }}
+                envVars:
+                - containerEnvVar:
+                    key: "JENKINS_URL"
+                    value: "http://{{ template "jenkins.fullname" . }}.{{ template "jenkins.namespace" . }}.svc.cluster.local:{{.Values.master.servicePort}}{{ default "" .Values.master.jenkinsUriPrefix }}"
+                privileged: "{{- if .Values.agent.privileged }}true{{- else }}false{{- end }}"
+                resourceLimitCpu: {{.Values.agent.resources.limits.cpu}}
+                resourceLimitMemory: {{.Values.agent.resources.limits.memory}}
+                resourceRequestCpu: {{.Values.agent.resources.requests.cpu}}
+                resourceRequestMemory: {{.Values.agent.resources.requests.memory}}
+                ttyEnabled: {{ .Values.agent.ttyEnabled }}
+              idleMinutes: {{ .Values.agent.idleMinutes }}
+              label: "{{ .Release.Name }}-{{ .Values.agent.componentName }}"
+              name: "{{ .Values.agent.podName }}"
+              nodeUsageMode: "NORMAL"
+              podRetention: "Never"
+              serviceAccount: "{{ include "jenkins.serviceAccountAgentName" . }}"
+              slaveConnectTimeoutStr: "60"
+  unclassified.yaml: |-
+    unclassified:
+          location:
+            url: {{ template "jenkins.url" . }}
+  tool.yaml: |-
+    tool:
+      git:
+        installations:
+        - home: "git"
+          name: "Default"
+      nodejs:
+        installations:
+        - name: "njs"
+          properties:
+          - installSource:
+              installers:
+              - nodeJSInstaller:
+                  id: "11.15.0"
+                  npmPackagesRefreshHours: 72

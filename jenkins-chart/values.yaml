@@ -1,0 +1,59 @@
+master:
+  image:
+    name: jenkins/jenkins
+    tag: lts
+    pullPolicy: "Always"
+  authentication:
+    username: admin
+    password: admin
+  componentName: "jenkins-master"
+  replicaCount: 1
+  numExecutors: 0
+  javaOpts: >
+    -Dhudson.slaves.NodeProvisioner.initialDelay=0 
+    -Dhudson.model.LoadStatistics.decay=0.7 
+    -Dhudson.slaves.NodeProvisioner.MARGIN=30 
+    -Dhudson.slaves.NodeProvisioner.MARGIN0=0.6 
+    -XX:+UnlockExperimentalVMOptions 
+    -XX:+UseCGroupMemoryLimitForHeap 
+    -XX:MaxRAMFraction=2 
+    -XshowSettings:vm 
+    -Djenkins.install.runSetupWizard=false"
+  jcascPath: "/var/jenkins_home/casc_configs"
+  jobs: 
+    enabled: true
+  servicePort: 8080
+  targetPort: 8080
+  nodePort:
+    port: 30005
+  slaveListenerPort: 50000
+  kubernetesNamespace:
+
+agent:
+  image:
+    name: "erenatas/jnlpslave"
+    tag: "3.27-1"
+  componentName: "jenkins-slave"
+  podName: "default"
+  privileged: false
+  alwaysPullImage: falseinitialDelay
+  ttyEnabled: false
+  workingDir: "/home/jenkins"
+  command: ""
+  containerCap: 100
+  idleMinutes: 0
+  resources:
+    requests:
+      cpu: "2"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+serviceAccount:
+  name:
+  annotations: {}
+
+serviceAccountAgent:
+  name:
+  annotations: {}

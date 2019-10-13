@@ -1,0 +1,15 @@
+{{- if .Values.master.jobs.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "jenkins.fullname" . }}-jobs
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/name: {{ template "jenkins.name" . }}
+    app.kubernetes.io/component: {{ .Values.master.componentName }}
+data:
+  {{- (.Files.Glob "jobs/*").AsConfig | nindent 2 }}
+{{- end -}}

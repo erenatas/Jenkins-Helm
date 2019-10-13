@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "jenkins.fullname" . }}
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/name: {{ template "jenkins.name" . }}
+spec:
+  replicas: {{ .Values.master.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "jenkins.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ template "jenkins.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: "{{ template "jenkins.serviceAccountName" . }}"
+      initContainers:
+        - name: "init-jenkins-container"
+          image: "{{ .Values.master.image.name }}:{{ .Values.master.image.tag }}"
+          imagePullPolicy: "{{ .Values.master.imagePullPolicy }}"
+          command: [ "sh", "/var/install_scripts/post-install-script.sh"]
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /var/jenkins_home
+              name: jenkins-home
+            - mountPath: /var/jenkins_config
+              name: jenkins-config
+            - mountPath: {{ .Values.master.jcascPath }}
+              name: jcasc-directory
+            - mountPath: /usr/share/jenkins/ref/plugins
+              name: plugins
+            - mountPath: /var/jenkins_plugins
+              name: plugin-dir
+            - mountPath: /var/install_scripts
+              name: install-scripts
+            {{- if .Values.master.jobs.enabled}}
+            - mountPath: /var/jenkins_jobs
+              name: jenkins-jobs
+            {{- end }}
+      containers:
+        - name: {{ template "jenkins.name" . }}
+          image: "{{ .Values.master.image.name }}:{{ .Values.master.image.tag }}"
+          imagePullPolicy: {{ .Values.master.image.pullPolicy }}
+          env:
+            - name: JAVA_OPTS
+              value: {{ .Values.master.javaOpts }}
+            - name: CASC_JENKINS_CONFIG
+              value: {{ .Values.master.jcascPath }}
+            - name: JENKINS_SLAVE_AGENT_PORT
+              value: "{{ .Values.master.slaveListenerPort }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /var/jenkins_home
+              name: jenkins-home
+            - mountPath: /var/jenkins_config
+              name: jenkins-config
+            - mountPath: {{ .Values.master.jcascPath }}
+              name: jcasc-directory
+            - mountPath: /usr/share/jenkins/ref/plugins
+              name: plugins
+            - mountPath: /var/jenkins_plugins
+              name: plugin-dir
+            - mountPath: /var/install_scripts
+              name: install-scripts
+            {{- if .Values.master.jobs}}
+            - mountPath: /var/jenkins_jobs
+              name: jenkins-jobs
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: jenkins-home
+          emptyDir: {}
+        - name: jenkins-config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: jcasc-directory
+          configMap:
+            name: {{ template "jenkins.fullname" . }}-jasc-config
+        - name: plugins
+          emptyDir: {}
+        - name: plugin-dir
+          emptyDir: {}
+        - name: install-scripts
+          configMap:
+            name: {{ template "jenkins.fullname" . }}-post-install
+        {{- if .Values.master.jobs}}
+        - name: jenkins-jobs
+          configMap:
+            name: {{ template "jenkins.fullname" . }}-jobs
+        {{- end }}

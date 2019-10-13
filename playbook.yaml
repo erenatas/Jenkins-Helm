@@ -1,0 +1,106 @@
+---
+- hosts: testserver
+  become: true
+  vars:
+    doc_root: /var/www/example
+
+  tasks:
+      - name: Install Packages
+        apt:
+          name: ['vim', 'nano', 'git', 'curl', 'wget', 'apt-transport-https', 'ca-certificates', 'software-properties-common', 'socat']
+          state: latest
+          update_cache: yes
+          force_apt_get: yes
+
+      - name: Add Docker GPG apt Key
+        apt_key:
+          url: https://download.docker.com/linux/ubuntu/gpg
+          state: present
+
+      - name: Add Docker Repository
+        apt_repository:
+          repo: deb https://download.docker.com/linux/ubuntu bionic stable
+          state: present
+
+      - name: Update apt and install docker-ce
+        apt:
+          name: docker-ce
+          update_cache: yes
+          state: latest
+
+      - name: Wait for Docker service is in systemctl
+        command: systemctl status docker
+        register: systemctl_cmd
+        retries: 200
+        delay: 3
+        until: ("Docker Application Container Engine" in systemctl_cmd.stdout and "loaded" in systemctl_cmd.stdout)
+      
+
+      - name: Start service docker, if not started
+        service:
+          name: docker
+          state: started
+
+      - name: Add Google GPG apt Key for kubectl
+        apt_key:
+          url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+          state: present
+
+      - name: Add Google Repository for kubectl
+        apt_repository:
+          repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+          state: present
+
+      - name: Update apt and install kubectl
+        apt:
+          name: kubectl
+          update_cache: yes
+          state: latest
+        
+      - name: Download Minikube executable
+        get_url:
+          url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          dest: /usr/local/bin/minikube
+          mode: '0755'
+
+      - name: Run start_minikube.sh
+        script: start_minikube.sh
+
+      - name: Retrieve helm binary archive.
+        unarchive:
+          src: https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz
+          dest: /tmp
+          creates: /usr/local/bin/helm
+          remote_src: yes
+
+      - name: Move helm binary into place.
+        command: >
+          cp /tmp/linux-amd64/helm /usr/local/bin/helm
+          creates=/usr/local/bin/helm
+
+      - name: Set up Helm and Tiller
+        command: helm init
+        register: helm_init_result
+        changed_when: "'already installed' not in helm_init_result.stdout"
+
+      - name: Verify Tiller is working
+        shell: kubectl get po -n kube-system | grep tiller-deploy
+        register: kubernetes_res
+        retries: 50
+        delay: 3
+        until: ("tiller-deploy" in kubernetes_res.stdout and "1/1" in kubernetes_res.stdout)
+
+      - name: Copy directory to the remote server
+        copy:
+          src: jenkins-chart
+          dest: /opt
+
+      - name: Install Jenkins helm chart
+        command: helm install /opt/jenkins-chart/ --name jenkins
+
+      - name: Verify Jenkins is running
+        command: kubectl get po
+        register: kubectl_po_result
+        retries: 200
+        delay: 3
+        until: ("jenkins-erenjenkins" in kubectl_po_result.stdout and "Running" in kubectl_po_result.stdout and "1/1" in kubectl_po_result.stdout)      
